@@ -26,6 +26,15 @@ The main relationships are: an Owner has Pets, a Pet has Tasks, the Scheduler us
 
 Yes. My original UML (matching the starter stubs) showed how the objects were used together but never drew the ownership hierarchy. I added two relationships — `Owner --> Pet : has` and `Pet --> Task : has` — so the diagram reflects the real structure: an owner has pets, and a pet has the care tasks. This makes it clear where tasks come from before the Scheduler turns them into a Plan, instead of leaving that connection implied.
 
+**AI review of the skeleton.** I asked my AI assistant to review `pawpal_system.py` for missing relationships and potential logic bottlenecks. Its main points:
+
+- **`Scheduler.build_plan` carries too much responsibility.** All the real complexity (sorting, fitting tasks into available time, skip logic, and later conflict/recurring handling) is funneled into one method. As the algorithm grows, I should extract helpers like `fits_in_remaining_time()` and `detect_conflicts()`.
+- **Code doesn't model Pet→Task yet.** Tasks are passed loose into `build_plan(tasks)`; the Pet class has no `tasks` list or `add_task()`. The diagram now shows the relationship, but the code is still a gap to close during implementation.
+- **No overlap/conflict validation.** Time is stored as plain `int` minutes with nothing preventing two scheduled items from overlapping — conflict detection still needs to be added.
+- **`Priority.from_str` raises on unknown input.** I need to decide how the UI should handle an invalid priority value.
+
+I kept the current class shapes (they're clean and the dataclasses are appropriate) but noted these as work items for the implementation phase rather than redesigning the skeleton now.
+
 ---
 
 ## 2. Scheduling Logic and Tradeoffs
