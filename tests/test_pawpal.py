@@ -1,17 +1,16 @@
-"""Tests for PawPal+ scheduling behavior.
+"""Tests for PawPal+.
 
-These are STARTER tests with the most important behaviors sketched out.
-Several are marked xfail/skip until you implement the logic. As you fill in
-pawpal_system.py, remove the markers and make each test pass.
+Covers scheduling behavior (priority ordering, time-fitting, no overlap) and
+the Phase 2 task-tracking behaviors (mark_complete, Pet.add_task).
 
-Run with:  pytest        (or: pytest --cov)
+Run with:  python -m pytest
 """
 
 import pytest
 
 from pawpal_system import (
     Owner,
-    Plan,
+    Pet,
     Priority,
     Scheduler,
     Task,
@@ -32,6 +31,24 @@ class TestPriority:
     def test_from_str(self):
         assert Priority.from_str("high") == Priority.HIGH
         assert Priority.from_str("low") == Priority.LOW
+
+
+class TestTaskCompletion:
+    def test_mark_complete_changes_status(self):
+        task = make_task()
+        assert task.completed is False
+        task.mark_complete()
+        assert task.completed is True
+
+
+class TestTaskAddition:
+    def test_adding_task_increases_pet_task_count(self):
+        pet = Pet(name="Biscuit", species="dog")
+        assert len(pet.tasks) == 0
+        pet.add_task(make_task("Morning walk"))
+        assert len(pet.tasks) == 1
+        pet.add_task(make_task("Feeding", 10, Priority.HIGH))
+        assert len(pet.tasks) == 2
 
 
 class TestScheduler:
@@ -64,3 +81,12 @@ class TestScheduler:
         plan = Scheduler(Owner(name="Jordan")).build_plan([])
         assert plan.scheduled == []
         assert plan.skipped == []
+
+    def test_build_plan_pulls_from_owner_pets(self):
+        owner = Owner(name="Jordan", available_minutes=120)
+        pet = Pet(name="Biscuit", species="dog")
+        pet.add_task(make_task("Walk", 30, Priority.HIGH))
+        owner.add_pet(pet)
+        plan = Scheduler(owner).build_plan()  # no explicit tasks -> uses owner's pets
+        assert len(plan.scheduled) == 1
+        assert plan.scheduled[0].task.title == "Walk"
