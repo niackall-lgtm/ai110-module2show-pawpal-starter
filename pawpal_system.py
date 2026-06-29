@@ -12,7 +12,8 @@ Workflow reminder (see README):
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
+from datetime import date, timedelta
 from enum import Enum
 from typing import Optional
 
@@ -41,13 +42,19 @@ class Task:
         title: Human-readable name, e.g. "Morning walk".
         duration_minutes: How long the task takes.
         priority: How important the task is.
+        time: Time of day the task should happen, in "HH:MM" 24h format.
+        frequency: How often it repeats: "daily" | "weekly" | "once".
+        completed: Whether the task has been done.
+        due_date: The calendar date the task is due (used for recurrence).
     """
 
     title: str
     duration_minutes: int
     priority: Priority
+    time: str = "08:00"
     frequency: str = "daily"  # e.g. "daily" | "weekly" | "once"
     completed: bool = False
+    due_date: Optional[date] = None
 
     def __post_init__(self) -> None:
         """Validate the task (e.g. duration must be positive)."""
@@ -57,6 +64,17 @@ class Task:
     def mark_complete(self) -> None:
         """Mark this task as done."""
         self.completed = True
+
+    def next_occurrence(self) -> Optional["Task"]:
+        """Return a fresh, uncompleted copy due on the next date, or None if one-off.
+
+        Uses timedelta to advance the due date: +1 day for "daily", +7 for "weekly".
+        """
+        step = {"daily": timedelta(days=1), "weekly": timedelta(weeks=1)}.get(self.frequency)
+        if step is None:
+            return None  # "once" tasks do not recur
+        base = self.due_date or date.today()
+        return replace(self, completed=False, due_date=base + step)
 
 
 @dataclass
@@ -160,3 +178,62 @@ class Scheduler:
             else:
                 plan.skipped.append(task)
         return plan
+
+    # --- Phase 4: algorithmic layer -------------------------------------
+
+    def sort_by_time(self, tasks: Optional[list[Task]] = None) -> list[Task]:
+        """Return tasks in chronological order by their "HH:MM" time string.
+
+        "HH:MM" strings sort correctly with plain string comparison because the
+        zero-padded, fixed-width format is lexicographically ordered.
+        """
+        if tasks is None:
+            tasks = self.owner.get_all_tasks()
+        return sorted(tasks, key=lambda t: t.time)
+
+    def filter_by_status(self, completed: bool, tasks: Optional[list[Task]] = None) -> list[Task]:
+        """Return only the tasks whose completion status matches `completed`."""
+        if tasks is None:
+            tasks = self.owner.get_all_tasks()
+        return [t for t in tasks if t.completed == completed]
+
+    def filter_by_pet(self, pet_name: str) -> list[Task]:
+        """Return all tasks belonging to the pet with the given name."""
+        return [
+            task
+            for pet in self.owner.pets
+            if pet.name.lower() == pet_name.lower()
+            for task in pet.tasks
+        ]
+
+    def detect_conflicts(self, tasks: Optional[list[Task]] = None) -> list[str]:
+        """Return warning strings for any tasks sharing the same time slot.
+
+        Lightweight strategy: group by the "HH:MM" time and warn on any slot
+        with more than one task. Returns messages instead of raising, so the
+        caller (CLI or UI) can surface them gracefully.
+        """
+        if tasks is None:
+            tasks = self.owner.get_all_tasks()
+
+        by_time: dict[str, list[Task]] = {}
+        for task in tasks:
+            by_time.setdefault(task.time, []).append(task)
+
+        warnings = []
+        for time_slot, group in sorted(by_time.items()):
+            if len(group) > 1:
+                titles = ", ".join(t.title for t in group)
+                warnings.append(f"⚠️ Conflict at {time_slot}: {titles}")
+        return warnings
+
+    def complete_and_reschedule(self, pet: Pet, task: Task) -> Optional[Task]:
+        """Mark a task complete and, if it recurs, add its next occurrence to the pet.
+
+        Returns the newly created task, or None for one-off tasks.
+        """
+        task.mark_complete()
+        upcoming = task.next_occurrence()
+        if upcoming is not None:
+            pet.add_task(upcoming)
+        return upcoming
