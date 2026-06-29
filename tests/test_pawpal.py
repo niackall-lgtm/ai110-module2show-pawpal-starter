@@ -6,6 +6,8 @@ the Phase 2 task-tracking behaviors (mark_complete, Pet.add_task).
 Run with:  python -m pytest
 """
 
+from datetime import date, timedelta
+
 import pytest
 
 from pawpal_system import (
@@ -90,3 +92,88 @@ class TestScheduler:
         plan = Scheduler(owner).build_plan()  # no explicit tasks -> uses owner's pets
         assert len(plan.scheduled) == 1
         assert plan.scheduled[0].task.title == "Walk"
+
+
+class TestSorting:
+    def test_sort_by_time_returns_chronological_order(self):
+        owner = Owner(name="Jordan")
+        tasks = [
+            Task("Evening", 20, Priority.LOW, time="18:00"),
+            Task("Morning", 20, Priority.LOW, time="08:00"),
+            Task("Noon", 20, Priority.LOW, time="12:00"),
+        ]
+        ordered = Scheduler(owner).sort_by_time(tasks)
+        assert [t.time for t in ordered] == ["08:00", "12:00", "18:00"]
+
+
+class TestFiltering:
+    def test_filter_by_status(self):
+        owner = Owner(name="Jordan")
+        done = make_task("done")
+        done.mark_complete()
+        todo = make_task("todo")
+        sched = Scheduler(owner)
+        assert sched.filter_by_status(True, [done, todo]) == [done]
+        assert sched.filter_by_status(False, [done, todo]) == [todo]
+
+    def test_filter_by_pet(self):
+        owner = Owner(name="Jordan")
+        dog = Pet(name="Biscuit", species="dog")
+        cat = Pet(name="Mochi", species="cat")
+        dog.add_task(make_task("Walk"))
+        cat.add_task(make_task("Litter"))
+        owner.add_pet(dog)
+        owner.add_pet(cat)
+        result = Scheduler(owner).filter_by_pet("Biscuit")
+        assert len(result) == 1
+        assert result[0].title == "Walk"
+
+
+class TestRecurrence:
+    def test_completing_daily_task_creates_next_day_task(self):
+        owner = Owner(name="Jordan")
+        pet = Pet(name="Biscuit", species="dog")
+        today = date.today()
+        feeding = Task("Feeding", 10, Priority.HIGH, frequency="daily", due_date=today)
+        pet.add_task(feeding)
+        owner.add_pet(pet)
+
+        new_task = Scheduler(owner).complete_and_reschedule(pet, feeding)
+
+        assert feeding.completed is True
+        assert new_task is not None
+        assert new_task.completed is False
+        assert new_task.due_date == today + timedelta(days=1)
+        assert len(pet.tasks) == 2
+
+    def test_one_off_task_does_not_recur(self):
+        task = Task("Vet visit", 60, Priority.HIGH, frequency="once")
+        assert task.next_occurrence() is None
+
+
+class TestConflictDetection:
+    def test_flags_two_tasks_at_same_time(self):
+        owner = Owner(name="Jordan")
+        tasks = [
+            make_task("Walk"),  # default time 08:00
+            make_task("Feed"),  # default time 08:00
+        ]
+        warnings = Scheduler(owner).detect_conflicts(tasks)
+        assert len(warnings) == 1
+        assert "08:00" in warnings[0]
+
+    def test_no_conflict_when_times_differ(self):
+        owner = Owner(name="Jordan")
+        tasks = [
+            Task("Walk", 20, Priority.LOW, time="08:00"),
+            Task("Feed", 20, Priority.LOW, time="09:00"),
+        ]
+        assert Scheduler(owner).detect_conflicts(tasks) == []
+
+
+class TestEdgeCases:
+    def test_pet_with_no_tasks(self):
+        owner = Owner(name="Jordan")
+        owner.add_pet(Pet(name="Empty", species="fish"))
+        assert owner.get_all_tasks() == []
+        assert Scheduler(owner).detect_conflicts() == []
