@@ -4,21 +4,21 @@
 
 Three core actions a user should be able to perform in PawPal+:
 
-1. **Add a pet** — enter a pet's name and species so the app knows who the care tasks are for.
-2. **Add a care task** — create a task (e.g. "Morning walk") with a duration and a priority (low/medium/high).
-3. **Generate today's plan** — given the owner's available time, produce a daily schedule that fits the most important tasks and shows which tasks didn't fit.
+1. **Add a pet**: enter a pet's name and species so the app knows who the care tasks are for.
+2. **Add a care task**:  create a task (e.g. "Morning walk") with a duration and a priority (low/medium/high).
+3. **Generate today's plan**: given the owner's available time, produce a daily schedule that fits the most important tasks and shows which tasks didn't fit.
 
 **a. Initial design**
 
 My initial UML has seven classes:
 
-- **Owner** — holds the owner's name and how many minutes they have available in a day. Represents the person and their scheduling constraint.
-- **Pet** — holds the pet's name and species. Identifies who the tasks are for.
-- **Task** — a single care task with a title, duration in minutes, and a priority. This is the unit the scheduler works with.
-- **Priority** — an enumeration (LOW, MEDIUM, HIGH) used to rank tasks so the most important ones get placed first.
-- **Scheduler** — the core logic. It sorts tasks by priority and fits them into the owner's available time, then produces a Plan.
-- **ScheduledItem** — wraps a Task with a start time, representing one task placed in the day.
-- **Plan** — the scheduler's output: a list of scheduled items plus a list of skipped tasks, and an `explain()` method to justify the result.
+- **Owner**: holds the owner's name and how many minutes they have available in a day. Represents the person and their scheduling constraint.
+- **Pet**: holds the pet's name and species. Identifies who the tasks are for.
+- **Task**: a single care task with a title, duration in minutes, and a priority. This is the unit the scheduler works with.
+- **Priority**: an enumeration (LOW, MEDIUM, HIGH) used to rank tasks so the most important ones get placed first.
+- **Scheduler**:the core logic. It sorts tasks by priority and fits them into the owner's available time, then produces a Plan.
+- **ScheduledItem**: wraps a Task with a start time, representing one task placed in the day.
+- **Plan**: the scheduler's output: a list of scheduled items plus a list of skipped tasks, and an `explain()` method to justify the result.
 
 The main relationships are: an Owner has Pets, a Pet has Tasks, the Scheduler uses the Owner's constraints to turn Tasks into a Plan, and a Plan contains ScheduledItems (which each wrap a Task).
 
@@ -45,7 +45,7 @@ The scheduler considers two main constraints. First, **time**: the owner has a f
 
 **b. Tradeoffs**
 
-One deliberate tradeoff is in **conflict detection**: `detect_conflicts` only flags tasks that share the *exact same* `HH:MM` start time, not tasks whose durations overlap (e.g. a 30-minute task at 08:00 and another at 08:15). I chose exact-match because it's simple, fast, and easy to reason about, and it catches the most common real mistake — accidentally scheduling two things for the same slot. Full interval-overlap detection would be more accurate but adds complexity (parsing times into minutes and comparing ranges) that isn't worth it for a first version aimed at a single busy owner. A second tradeoff: `build_plan` packs tasks back-to-back by priority and ignores each task's preferred time of day, so it optimizes for "fit the important things" over "honor the exact clock time."
+One deliberate tradeoff is in **conflict detection**: `detect_conflicts` only flags tasks that share the *exact same* `HH:MM` start time, not tasks whose durations overlap (e.g. a 30-minute task at 08:00 and another at 08:15). I chose exact-match because it's simple, fast, and easy to reason about, and it catches the most common real mistake, which is accidentally scheduling two things for the same slot. Full interval-overlap detection would be more accurate but adds complexity (parsing times into minutes and comparing ranges) that isn't worth it for a first version aimed at a single busy owner. A second tradeoff: `build_plan` packs tasks back-to-back by priority and ignores each task's preferred time of day, so it optimizes for "fit the important things" over "honor the exact clock time."
 
 ---
 
@@ -69,7 +69,7 @@ I tested: task validation and `Priority.from_str`; `mark_complete` flipping stat
 
 **b. Confidence**
 
-I'm fairly confident — 4 out of 5. All 17 tests pass and the CLI demo behaves as expected. If I had more time I'd test **partial-duration overlaps** (the case my conflict detection currently ignores), tasks crossing midnight, invalid time strings like `"25:00"`, and weekly recurrence landing on the correct date across month boundaries.
+I'm fairly confident, specifically 4 out of 5. All 17 tests pass and the CLI demo behaves as expected. If I had more time I'd test **partial-duration overlaps** (the case my conflict detection currently ignores), tasks crossing midnight, invalid time strings like `"25:00"`, and weekly recurrence landing on the correct date across month boundaries.
 
 ---
 
@@ -93,5 +93,5 @@ The biggest thing I learned is what it means to be the **lead architect** rather
 
 - **Most effective AI features:** inline/agent editing for filling in method bodies from a clear signature, and chat for scoped "how do I…" questions (e.g. `timedelta`, sorting `HH:MM` strings with a lambda key). Generating the first Mermaid diagram from a class list was also a big time-saver.
 - **A suggestion I modified:** the AI proposed replacing my class design when adding task-tracking features; I instead extended it additively so existing tests kept passing (see 3b).
-- **Separate chat sessions per phase** kept context clean — design discussion didn't bleed into testing, so each session's suggestions stayed relevant to the task at hand and I didn't get answers polluted by earlier, now-outdated decisions.
-- **Lead-architect takeaway:** powerful AI tools amplify whatever direction you give them. Owning the architecture, the constraints, and the verification loop — and treating AI output as a draft to review, not a decision — is what produced a system that's clean and that I actually understand.
+- **Separate chat sessions per phase** kept context clean: design discussion didn't bleed into testing, so each session's suggestions stayed relevant to the task at hand and I didn't get answers polluted by earlier, now-outdated decisions.
+- **Lead-architect takeaway:** powerful AI tools amplify whatever direction you give them. Owning the architecture, the constraints, and the verification loop, and treating AI output as a draft to review, helped me create a website as effeciently as possible.
