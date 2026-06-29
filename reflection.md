@@ -41,13 +41,11 @@ I kept the current class shapes (they're clean and the dataclasses are appropria
 
 **a. Constraints and priorities**
 
-- What constraints does your scheduler consider (for example: time, priority, preferences)?
-- How did you decide which constraints mattered most?
+The scheduler considers two main constraints. First, **time**: the owner has a fixed number of `available_minutes` in a day, and `build_plan` only schedules tasks that still fit in the remaining time, sending the rest to a `skipped` list. Second, **priority**: tasks are sorted HIGH → LOW before placement, so the most important tasks claim time first. I treated priority as the most important constraint because the whole point of the app is helping a busy owner make sure the *essential* care (walks, feeding, meds) happens even when there isn't time for everything.
 
 **b. Tradeoffs**
 
-- Describe one tradeoff your scheduler makes.
-- Why is that tradeoff reasonable for this scenario?
+One deliberate tradeoff is in **conflict detection**: `detect_conflicts` only flags tasks that share the *exact same* `HH:MM` start time, not tasks whose durations overlap (e.g. a 30-minute task at 08:00 and another at 08:15). I chose exact-match because it's simple, fast, and easy to reason about, and it catches the most common real mistake — accidentally scheduling two things for the same slot. Full interval-overlap detection would be more accurate but adds complexity (parsing times into minutes and comparing ranges) that isn't worth it for a first version aimed at a single busy owner. A second tradeoff: `build_plan` packs tasks back-to-back by priority and ignores each task's preferred time of day, so it optimizes for "fit the important things" over "honor the exact clock time."
 
 ---
 
@@ -55,13 +53,11 @@ I kept the current class shapes (they're clean and the dataclasses are appropria
 
 **a. How you used AI**
 
-- How did you use AI tools during this project (for example: design brainstorming, debugging, refactoring)?
-- What kinds of prompts or questions were most helpful?
+I used my AI coding assistant across every phase: brainstorming the class design and generating the first Mermaid UML, scaffolding the dataclass stubs, implementing the algorithmic methods (sorting, filtering, recurrence, conflict detection), and drafting the pytest suite. The most helpful prompts were **specific and scoped**, like "how should the Scheduler retrieve all tasks from the Owner's pets?" and "how do I use `timedelta` to compute the next due date for a daily task?" Narrow questions produced answers I could drop in and verify, whereas vague ones produced over-engineered code.
 
 **b. Judgment and verification**
 
-- Describe one moment where you did not accept an AI suggestion as-is.
-- How did you evaluate or verify what the AI suggested?
+I did not accept AI suggestions blindly. For example, when extending the classes for Phase 2's task-tracking model (`completed`, `frequency`, `mark_complete`), the straightforward AI suggestion was to *replace* the existing duration/priority-based `Task` and `Scheduler`. I rejected that because it would have broken the passing scheduler tests. Instead I **added** the new fields and methods on top of the existing design, keeping defaults so old call sites still worked. I verified every change the same way: by running `python main.py` (the CLI demo) and `python -m pytest` after each step, so behavior was confirmed by output and tests rather than by trusting the generated code.
 
 ---
 
@@ -69,13 +65,11 @@ I kept the current class shapes (they're clean and the dataclasses are appropria
 
 **a. What you tested**
 
-- What behaviors did you test?
-- Why were these tests important?
+I tested: task validation and `Priority.from_str`; `mark_complete` flipping status; `Pet.add_task` increasing the task count; the day plan's priority ordering, time-fitting/skip behavior, and no-overlap guarantee; `sort_by_time` returning chronological order; filtering by status and by pet; recurrence (completing a daily task creates a next-day task, and one-off tasks don't recur); and conflict detection flagging same-time tasks. I also added edge cases — an empty task list and a pet with no tasks. These matter because they're exactly the behaviors a pet owner relies on, and the edge cases are where scheduling code usually breaks.
 
 **b. Confidence**
 
-- How confident are you that your scheduler works correctly?
-- What edge cases would you test next if you had more time?
+I'm fairly confident — 4 out of 5. All 17 tests pass and the CLI demo behaves as expected. If I had more time I'd test **partial-duration overlaps** (the case my conflict detection currently ignores), tasks crossing midnight, invalid time strings like `"25:00"`, and weekly recurrence landing on the correct date across month boundaries.
 
 ---
 
@@ -83,12 +77,21 @@ I kept the current class shapes (they're clean and the dataclasses are appropria
 
 **a. What went well**
 
-- What part of this project are you most satisfied with?
+I'm most satisfied with the clean separation between the logic layer (`pawpal_system.py`) and the UI (`app.py`). Because I followed the CLI-first workflow and verified everything with `main.py` and pytest before touching Streamlit, wiring up the UI was quick and I was confident the "brain" already worked.
 
 **b. What you would improve**
 
-- If you had another iteration, what would you improve or redesign?
+I'd upgrade conflict detection to real interval-overlap checking, and make `build_plan` respect each task's preferred time of day instead of packing tasks back-to-back. I'd also let the UI mark tasks complete and show recurring tasks regenerating, so the recurrence feature is visible to the user and not just in the CLI demo.
 
 **c. Key takeaway**
 
-- What is one important thing you learned about designing systems or working with AI on this project?
+The biggest thing I learned is what it means to be the **lead architect** rather than just a prompter: AI is fastest when I give it a clear, well-scoped design to build against, and most dangerous when I let it make structural decisions. Keeping the design in my head, adding to the system instead of letting AI rewrite it, and verifying every step with tests is what kept the project coherent.
+
+---
+
+## 6. AI Strategy (Phase 6)
+
+- **Most effective AI features:** inline/agent editing for filling in method bodies from a clear signature, and chat for scoped "how do I…" questions (e.g. `timedelta`, sorting `HH:MM` strings with a lambda key). Generating the first Mermaid diagram from a class list was also a big time-saver.
+- **A suggestion I modified:** the AI proposed replacing my class design when adding task-tracking features; I instead extended it additively so existing tests kept passing (see 3b).
+- **Separate chat sessions per phase** kept context clean — design discussion didn't bleed into testing, so each session's suggestions stayed relevant to the task at hand and I didn't get answers polluted by earlier, now-outdated decisions.
+- **Lead-architect takeaway:** powerful AI tools amplify whatever direction you give them. Owning the architecture, the constraints, and the verification loop — and treating AI output as a draft to review, not a decision — is what produced a system that's clean and that I actually understand.
